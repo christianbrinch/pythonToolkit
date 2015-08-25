@@ -103,18 +103,18 @@ class readRadmc3d():
 
   def contour(self, prop=None):
     if(prop=='Tdust'):
-      data=self.T[0:len(self.x)]['1']
-      label="Dust temperature [K]"
+        data=self.T[0:len(self.x)]['1']
+        label="Dust temperature [K]"
     elif(prop=='rho'):
-      data=np.log(self.rho[0:len(self.x)]['1'])
-      label="Log some density [?]"
+        data=np.log(self.rho[0:len(self.x)]['1'])
+        label="Log some density [?]"
     else:
-      try:
-        data=prop
-	label='Unknown property'
-      except:
-        print "Please specify property to plot. Valid properties are [Tdust, rho]"
-        return
+        try:
+            data=self.prop
+            label='Unknown property'
+        except:
+            print "Please specify property to plot. Valid properties are [Tdust, rho]"
+            return
 
     x_au = self.x/1.49e13
     y_au = self.y/1.49e13
