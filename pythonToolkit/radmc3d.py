@@ -101,7 +101,7 @@ class readModel():
             t=np.zeros(self.nx*self.ny)
             for k in range(self.nx*self.ny):
                 r[k] = self.x[k % self.nx]
-            t[k] = self.y[k / self.nx]
+                t[k] = self.y[k / self.nx]
 
         self.x= r * np.sin(t)
         self.y= r * np.cos(t)
@@ -130,7 +130,7 @@ class readModel():
             label="Dust temperature [K]"
         elif(prop=='rho'):
             data=np.log(self.rho[0:len(self.x)]['1'])
-            label="Log some density [?]"
+            label="Log some density [g/cm^2]"
         else:
             try:
                 data=self.prop
@@ -173,7 +173,7 @@ def prepare(inputFile='model'):
     try:
         __import__(inputFile)
     except:
-        print 'Error: model file not found'
+        print 'Error: model file not found or syntax error in model.py'
         return
 
     par = sys.modules[inputFile]
