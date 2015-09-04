@@ -12,23 +12,23 @@ import os
 try:
     from astropy.io import ascii
 except:
-    print 'Error: radmc2LIME requires astropy'
+    print 'Error: radmc3d requires astropy'
 
 try:
     import numpy as np
 except:
-    print 'Error: radmc2LIME requires numpy' 
+    print 'Error: radmc3d requires numpy' 
 
 try:
     from scipy.integrate import simps
 except:
-    print 'Error: radmc2LIME requires scipy' 
+    print 'Error: radmc3d requires scipy' 
 
 try:
     import matplotlib.pyplot as plt
     from matplotlib.tri import Triangulation, TriAnalyzer, UniformTriRefiner
 except:
-    print 'Error: radmc2LIME requires matplotlib' 
+    print 'Error: radmc3d requires matplotlib' 
 
 
 
@@ -143,14 +143,16 @@ class readModel():
         y_au = self.y/1.49e13
 
         tri=Triangulation(x_au,y_au)
-
+        
         plt.close('all')
         plt.figure()
         ax=plt.subplot(111)
-        ax.set_xscale("log",nonposx='clip')
-        ax.set_yscale("log",nonposy='clip')
-        ax.set_xlim([0.1,200])
-        ax.set_ylim([0.1,200])
+        ax.minorticks_on()
+#        ax.set_xscale("log",nonposx='clip')
+#        ax.set_yscale("log",nonposy='clip')
+#        ax.set_xlim([0.1,200])
+#        ax.set_ylim([0.1,200])
+        plt.axis('equal')
         plt.xlabel('r [AU]')
         plt.ylabel('z [AU]')
 
@@ -167,6 +169,7 @@ class readModel():
 
         plt.triplot(tri, color='black', alpha=0.2)
 
+        plt.show(block=False)
 
 
 def prepare(inputFile='model'):
