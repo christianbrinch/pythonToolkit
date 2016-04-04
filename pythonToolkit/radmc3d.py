@@ -6,6 +6,7 @@ This module deals with radmc3d models
 """
 
 from pythonToolkit import standards
+from pythonToolkit.constants import *
 import sys
 import os
 
@@ -103,73 +104,26 @@ class readModel():
                 r[k] = self.x[k % self.nx]
                 t[k] = self.y[k / self.nx]
 
-        self.x= r * np.sin(t)
-        self.y= r * np.cos(t)
+        self.x   = r * np.sin(t)
+        self.y   = r * np.cos(t)
+        self.T   = self.T[0:len(self.x)]['1']
+        self.rho = self.rho[0:len(self.x)]['1']
 
 
 
     def meanOpacity(self):
-        def dB_T(T,lam):
-            c1 = 2*6.62e-34*(3e8)**2.
-            c2 = 6.62e-34*3e8/1.38e-23
-            return c1*c2*np.exp(c2/(lam * T)) / (lam**6 * T**2 *(np.exp(c2/(lam * T))-1)**2) 
+        def dB_T(T,freq):
+            hnu_kt = hh*freq/(kk*T)
+            return 2*hh**2*freq**4/cc**2 * np.exp(hnu_kt)/(T**2*(np.exp(hnu_kt)-1)**2)
 
-        self.kappa = np.zeros(len(self.x))
+        self.kappa  = np.zeros(len(self.x))
+        
         for i in range(len(self.x)):
-            f = [dB_T(self.T[i]['1'],nu) for nu in self.dust[0][:]]
-            nom = simps( self.dust[1][:]**(-1) * f, self.dust[0][:])
-            denom = simps( f, self.dust[0][:])
+            f = [dB_T(self.T[i],nu) for nu in cc/self.dust[0][:]]
+            nom = simps( self.dust[1][:]**(-1) * f, cc/(1e-4*self.dust[0][:]))
+            denom = simps( f, cc/(1e-4*self.dust[0][:]))
             self.kappa[i] = (nom / denom)**(-1.)
 
-        self.absorp = self.kappa * self.rho[0:len(self.x)]['1']
-
-
-    def contour(self, prop=None):
-        if(prop=='Tdust'):
-            data=self.T[0:len(self.x)]['1']
-            label="Dust temperature [K]"
-        elif(prop=='rho'):
-            data=np.log(self.rho[0:len(self.x)]['1'])
-            label="Log some density [g/cm^2]"
-        else:
-            try:
-                data=self.prop
-                label='Unknown property'
-            except:
-                print "Please specify property to plot. Valid properties are [Tdust, rho]"
-                return
-
-        x_au = self.x/1.49e13
-        y_au = self.y/1.49e13
-
-        tri=Triangulation(x_au,y_au)
-        
-        plt.close('all')
-        plt.figure()
-        ax=plt.subplot(111)
-        ax.minorticks_on()
-#        ax.set_xscale("log",nonposx='clip')
-#        ax.set_yscale("log",nonposy='clip')
-#        ax.set_xlim([0.1,200])
-#        ax.set_ylim([0.1,200])
-        plt.axis('equal')
-        plt.xlabel('r [AU]')
-        plt.ylabel('z [AU]')
-
-        nmax=data.max()
-        nmin=data.min()
-        levels=np.arange(12) * (nmax-nmin)/12. + nmin
-        plt.tricontourf(tri, data, levels)
-        cbar=plt.colorbar()
-        cbar.set_label(label)
-
-        CS=plt.tricontour(tri, data, levels, colors='black', linewidths=1.5)
-        plt.clabel(CS, fontsize=8, inline=1)
-        cbar.add_lines(CS)
-
-        plt.triplot(tri, color='black', alpha=0.2)
-
-        plt.show(block=False)
 
 
 def prepare(inputFile='model'):
@@ -228,7 +182,7 @@ def prepare(inputFile='model'):
     for iz in range(par.nz):
         for iy in range(par.ny):
             for ix in range(par.nx):
-                f.write('%s\n' % par.rhod[ix,iy])
+                f.write('%s\n' % par.rhod[iz,iy,ix])
     f.close()
 
     f = open('dustopac.inp', 'w')

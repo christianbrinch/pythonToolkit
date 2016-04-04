@@ -3,9 +3,11 @@
 import standards
 import constants
 import misc
+import analysis
 import radmc3d
 import lime
 import fits
+import plots
 
 __version__ = "0.01"
-__all__ = ["fits", "lime", "radmc3d", "misc", "standards", "constants"]
+__all__ = ["plots", "fits", "lime", "radmc3d", "misc", "analysis", "standards", "constants"]
