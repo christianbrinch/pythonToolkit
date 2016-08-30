@@ -54,8 +54,10 @@ def beam(ax, posx,posy,beamsize_x,beamsize_y,angle):
     beam = Ellipse((posx,posy), beamsize_x/15.,beamsize_y, angle=angle+90)
     patches=[]
     patches.append(beam)
-    p = PatchCollection(patches, facecolor='black', hatch='\\')
+    p = PatchCollection(patches, facecolor='white') #, hatch='//') 
     ax.add_collection(p)
+    ax.plot([posx+0.04,posx-10]  ,[posy+0.5,posy+0.5],color='white')
+    ax.plot([posx+0.04,posx+0.04],[posy+0.5,posy-10.],color='white')
     print "Beam size: ", beamsize_x,"x",beamsize_y, " Angle: ", angle
     return ax
 

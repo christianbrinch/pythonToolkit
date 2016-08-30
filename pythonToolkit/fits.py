@@ -98,9 +98,9 @@ class read():
         print "RMS: ",rms
         return rms
 
-    def _getIndices(self,d,dx,dv=0):
+    def _getIndices(self,d,dx,dy,dv=0):
         xc=yc=0
-        yc = np.where((self.yaxis > np.average(self.yaxis)-dx) & (self.yaxis < np.average(self.yaxis)+dx))
+        yc = np.where((self.yaxis > np.average(self.yaxis)-dy) & (self.yaxis < np.average(self.yaxis)+dy))
         if(0 not in self.xaxis[:] and 0 not in self.yaxis[:]):
             dx=dx/15.
         xc = np.where((self.xaxis > np.average(self.xaxis)-dx) & (self.xaxis < np.average(self.xaxis)+dx))
@@ -132,14 +132,18 @@ class read():
             offset=bmaj/2.+bmin/4.*5.
             plots.beam(ax, np.min(self.xaxis[xc])+offset/15., np.min(self.yaxis[yc])+offset, bmaj, bmin, float(self.header['BPA']))
 
-    def continuum(self, dx=1e30, nobeam=False, rms=-1, immax=-1, solid=True, title=True):
+
+    def continuum(self, dx=1e30, dy=-1, nobeam=False, rms=-1, immax=-1, solid=True, title=True):
+        if(dy == -1):
+            dy=dx
+
         if(self.vaxis.any()):
             sys.exit(self.fileName + " is not a continuum image")
 
         if(rms<0):
             rms=self.getRMS()
 
-        xc,yc,vc=self._getIndices(self,dx)
+        xc,yc,vc=self._getIndices(self,dx,dy)
 
         ax,cmap,fig=plots.createFigure(self.xaxis,self.yaxis,xc,yc,self.header,title)
 
