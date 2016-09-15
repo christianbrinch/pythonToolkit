@@ -164,13 +164,11 @@ class read():
                 a = 15.
                 angle = 90.
 
+
             plots.beam(ax, xcor, ycor, xcen, ycen, bmaj/a, bmin,
                        angle, black)
 
-
         print "Beam size: ", bmaj,"x", bmin, " Angle: ", float(self.header['BPA'])+90
-
-
 
 
     def continuum(self, dx=1e30, dy=-1, noBeam=False, rms=-1, immax=-1,

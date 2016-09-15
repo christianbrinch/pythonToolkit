@@ -30,7 +30,7 @@ def createFigure(xaxis,yaxis,xc,yc,header,title):
         ax.set_title(header['OBJECT'])
     ax.set_xlim(np.max( xaxis[xc] ),np.min( xaxis[xc] ))
     ax.set_ylim(np.min( yaxis[yc] ),np.max( yaxis[yc] ))
-    
+
     if 0. in xaxis[:] and 0. in yaxis[:]:
         ax.set_xlabel('R. A. offset (arcsec)')
         ax.set_ylabel('DEC offset (arcsec)')
