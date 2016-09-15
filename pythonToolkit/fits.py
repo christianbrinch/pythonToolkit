@@ -33,7 +33,7 @@ except:
 try:
     import cubehelix
 except:
-    print 'Error: cubehelix not fount'
+    print 'Error: cubehelix not found'
 
 
 
@@ -150,25 +150,20 @@ class read():
                                float(beaminfo[2]), float(beaminfo[4]),
                                float(beaminfo[8]))
         elif ('BMAJ' in self.header) and ('BMIN' in self.header):
-            bmaj = float(self.header['BMAJ'])*3600.
-            bmin = float(self.header['BMIN'])*3600.
+            bmaj = float(self.header['BMAJ'])
+            bmin = float(self.header['BMIN'])
+            angle = float(self.header['BPA'])
+            print "Beam size: ", bmaj*3600.,"x", bmin*3600., " Angle: ", angle+90
             dx = (np.max(self.xaxis[xc])-np.min(self.xaxis[xc]))/10.
             dy = (np.max(self.yaxis[yc])-np.min(self.yaxis[yc]))/10.
             xcor,ycor = np.min(self.xaxis[xc]) + dx, np.min(self.yaxis[yc]) + dy
             xcen,ycen = xcor - dx/2., ycor - dy/2.
-
             if(self.xunit == 'arcsec'):
-                a = 1.
-                angle = float(self.header['BPA'])
-            else:
-                a = 15.
-                angle = 90.
+                bmaj=bmaj*3600.
+                bmin=bmin*3600.
 
+            plots.beam(ax, xcor, ycor, xcen, ycen, bmaj, bmin, angle, black)
 
-            plots.beam(ax, xcor, ycor, xcen, ycen, bmaj/a, bmin,
-                       angle, black)
-
-        print "Beam size: ", bmaj,"x", bmin, " Angle: ", float(self.header['BPA'])+90
 
 
     def continuum(self, dx=1e30, dy=-1, noBeam=False, rms=-1, immax=-1,
@@ -221,20 +216,31 @@ class read():
         return ax, fig
 
 
-    def moment(self, dx=1e30, dv=1e30, sysvel=0, nobeam=False, mom=0, rms=-1,
-               overplot=False):
+
+
+
+
+
+
+
+
+    def moment(self, dx=1e30, dy=-1, dv=1e30, sysvel=0, nobeam=False, mom=0, rms=-1,
+               overplot=False, title=True):
 
         if not self.vaxis.any():
             sys.exit(self.fileName + " is not a line image")
+
+        if(dy == -1):
+            dy = dx
 
         if(rms<0):
             rms = self.getRMS()
 
         self.vaxis = self.vaxis-sysvel
-        xc,yc,vc = self._getIndices(self, dx, dv)
+        xc,yc,vc = self._getIndices(self, dx, dy, dv)
 
-        ax,cmap = plots.createFigure(self.xaxis, self.yaxis, xc, yc,
-                                     self.header)
+        ax,cmap,fig = plots.createFigure(self.xaxis, self.yaxis, xc, yc,
+                                         self.header, title)
 
         moment0 = (self.image[vc[0]]*(np.abs(self.vaxis[1]
                                              -self.vaxis[0]))).sum(axis=0)
@@ -281,6 +287,13 @@ class read():
         cbar.set_label('Intensity integrated velocity')
         ax.contour(self.xaxis, self.yaxis, moment0, colors='black',
                    levels=np.arange(25)*2*rms+3*rms)
+
+
+
+
+
+
+
 
 
 
