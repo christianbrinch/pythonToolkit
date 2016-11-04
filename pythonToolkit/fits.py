@@ -164,8 +164,6 @@ class read():
 
             plots.beam(ax, xcor, ycor, xcen, ycen, bmaj, bmin, angle, black)
 
-
-
     def continuum(self, dx=1e30, dy=-1, noBeam=False, rms=-1, immax=-1,
                   solid=True, title=True, wedge=True, lightBackground=True):
 
@@ -190,13 +188,6 @@ class read():
         if(immax == -1):
             immax = np.nanmax(self.image)
 
-        m=''
-        if(immax < 0.01):
-            immax=immax*1000.
-            self.image = self.image*1000.
-            m='m'
-            rms=rms*1000.
-
         cx = cubehelix.cmap(start=0, rot=-0.5, reverse=lightBackground)
         if(solid):
             im=ax.imshow(self.image, cmap=cx, alpha=1.0,
@@ -206,7 +197,7 @@ class read():
                         vmin=np.nanmin(3*rms), vmax=immax, aspect='auto')
             if(wedge):
                 cbar = plt.colorbar(im)
-                cbar.set_label('Intensity ('+m+self.header['BUNIT']+')')
+                cbar.set_label('Intensity ('+self.header['BUNIT']+')')
         else:
             im=ax.imshow(self.image, cmap=cx, alpha=0.0,
                          interpolation='nearest', origin='lower',
