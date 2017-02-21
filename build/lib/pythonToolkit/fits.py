@@ -164,8 +164,6 @@ class read():
 
             plots.beam(ax, xcor, ycor, xcen, ycen, bmaj, bmin, angle, black)
 
-
-
     def continuum(self, dx=1e30, dy=-1, noBeam=False, rms=-1, immax=-1,
                   solid=True, title=True, wedge=True, lightBackground=True):
 
@@ -176,8 +174,8 @@ class read():
             dy = dy/3600.
             dx = dx/3600.
 
-        if(self.vaxis.any()):
-            sys.exit(self.fileName + " is not a continuum image")
+        #if(self.vaxis.any()):
+        #    sys.exit(self.fileName + " is not a continuum image")
 
         if(rms<0):
             rms = self.getRMS()
@@ -215,7 +213,62 @@ class read():
 
         return ax, fig
 
+    def polarization(self, dx=1e30, dy=-1, noBeam=False, rms=-1, immax=-1,
+                     solid=True, title=True, wedge=True, lightBackground=True):
 
+        if(dy == -1):
+            dy = dx
+
+        if(self.xunit == 'seconds'):
+            dy = dy/3600.
+            dx = dx/3600.
+
+        if(rms<0):
+            rms = self.getRMS()
+
+        xc,yc,vc = self._getIndices(self,dx,dy)
+
+        ax,cmap,fig = plots.createFigure(self.xaxis, self.yaxis, xc, yc,
+                                         self.header, title)
+
+        tmpimage = np.sqrt(self.image[1]**2+self.image[2]**2)/self.image[0]
+
+        if(immax == -1):
+            immax = np.nanmax(tmpimage)
+
+
+        cx = cubehelix.cmap(start=0, rot=-0.5, reverse=lightBackground)
+        if(solid):
+            im=ax.imshow(tmpimage, cmap=cx, alpha=1.0,
+                        interpolation='nearest', origin='lower',
+                        extent=[np.max(self.xaxis), np.min(self.xaxis),
+                        np.min(self.yaxis), np.max(self.yaxis)],
+                        vmin=np.nanmin(3*rms), vmax=immax, aspect='auto')
+
+            #X, Y = np.mgrid[min(self.yaxis):max(self.yaxis), min(self.xaxis):max(self.xaxis)]
+            X, Y = np.meshgrid(self.yaxis,self.xaxis, sparse=False)
+            skip=(slice(None,None,25),slice(None,None,25))
+            tmp2image=np.sqrt(self.image[1]**2+self.image[2]**2)
+
+            plt.quiver(X[skip], Y[skip], self.image[2][skip]/tmp2image[skip], self.image[1][skip]/tmp2image[skip], self.image[0][skip], alpha=.5)
+            plt.quiver(X[skip], Y[skip], self.image[2][skip]/tmp2image[skip], self.image[1][skip]/tmp2image[skip], edgecolor='k', facecolor='None', linewidth=.5)
+            if(wedge):
+                cbar = plt.colorbar(im)
+                cbar.set_label('Polarization degree')
+        else:
+            im=ax.imshow(tmpimage, cmap=cx, alpha=0.0,
+                         interpolation='nearest', origin='lower',
+                         extent=[np.max(self.xaxis), np.min(self.xaxis),
+                         np.min(self.yaxis), np.max(self.yaxis)],
+                         vmin=np.nanmin(3*rms), vmax=immax, aspect='auto')
+            im=ax.contour(self.xaxis, self.yaxis, self.image, colors='black',
+                          aspect='auto', interpolation='nearest',
+                          linewidths=1.5, levels=np.arange(150)*3*rms+3*rms)
+
+        if(not noBeam):
+            self._plotBeam(self, ax, xc, yc, lightBackground)
+
+        return ax, fig
 
 
 

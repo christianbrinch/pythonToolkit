@@ -2,7 +2,7 @@
 
 radmc3d tools, Christian Brinch (c) 2015
 
-This module deals with radmc3d models 
+This module deals with radmc3d models
 """
 
 from pythonToolkit import standards
@@ -18,18 +18,18 @@ except:
 try:
     import numpy as np
 except:
-    print 'Error: radmc3d requires numpy' 
+    print 'Error: radmc3d requires numpy'
 
 try:
     from scipy.integrate import simps
 except:
-    print 'Error: radmc3d requires scipy' 
+    print 'Error: radmc3d requires scipy'
 
 try:
     import matplotlib.pyplot as plt
     from matplotlib.tri import Triangulation, TriAnalyzer, UniformTriRefiner
 except:
-    print 'Error: radmc3d requires matplotlib' 
+    print 'Error: radmc3d requires matplotlib'
 
 
 
@@ -94,7 +94,7 @@ class readModel():
             self.x = (self.xi[0:self.nx] +  self.xi[1:self.nx+1]) * 0.5
             self.y = (self.yi[0:self.ny] +  self.yi[1:self.ny+1]) * 0.5
             self.z = (self.zi[0:self.nz] +  self.zi[1:self.nz+1]) * 0.5
-        else: 
+        else:
             self.x = np.sqrt(self.xi[0:self.nx] * self.xi[1:self.nx+1])
             self.y = (self.yi[0:self.ny] +  self.yi[1:self.ny+1]) * 0.5
             self.z = (self.zi[0:self.nz] +  self.zi[1:self.nz+1]) * 0.5
@@ -104,10 +104,13 @@ class readModel():
                 r[k] = self.x[k % self.nx]
                 t[k] = self.y[k / self.nx]
 
-        self.x   = r * np.sin(t)
-        self.y   = r * np.cos(t)
-        self.T   = self.T[0:len(self.x)]['1']
-        self.rho = self.rho[0:len(self.x)]['1']
+            #self.x   = r * np.sin(t)
+            #self.y   = r * np.cos(t)
+
+
+        self.T = np.reshape(self.T['1'], (300,300), order='C')
+        #self.T   = self.T[0:len(self.x)]['1']
+        #self.rho = self.rho[0:len(self.x)]['1']
 
 
 
@@ -117,7 +120,7 @@ class readModel():
             return 2*hh**2*freq**4/cc**2 * np.exp(hnu_kt)/(T**2*(np.exp(hnu_kt)-1)**2)
 
         self.kappa  = np.zeros(len(self.x))
-        
+
         for i in range(len(self.x)):
             f = [dB_T(self.T[i],nu) for nu in cc/self.dust[0][:]]
             nom = simps( self.dust[1][:]**(-1) * f, cc/(1e-4*self.dust[0][:]))
@@ -128,12 +131,16 @@ class readModel():
 
 def prepare(inputFile='model'):
     try:
-        __import__(inputFile)
+        myModel = __import__(inputFile)
+        reload(myModel)
     except:
         print 'Error: model file not found or syntax error in model.py'
         return
 
     par = sys.modules[inputFile]
+
+    if len(par.rhod.shape) == 2:
+        par.rhod = np.expand_dims(par.rhod, axis=0)
 
     lam12   = par.lambda1 * (par.lambda2/par.lambda1)**(np.arange(par.n12*1.)/(1.*par.n12))
     lam23   = par.lambda2 * (par.lambda3/par.lambda2)**(np.arange(par.n23*1.)/(1.*par.n23))
@@ -147,13 +154,13 @@ def prepare(inputFile='model'):
         f.write('%s\n' % lambd[ilam])
     f.close()
 
-    f = open('stars.inp', 'w') 
+    f = open('stars.inp', 'w')
     f.write('2\n')
     f.write('1 %s\n' % nlam)
     f.write('\n')
     f.write('%s %s %s %s %s\n' % (par.rstar,par.mstar,par.pstar[0],par.pstar[1],par.pstar[2]))
     f.write('\n')
-    for ilam in range(nlam):  
+    for ilam in range(nlam):
         f.write('%s\n' % lambd[ilam])
     f.write('\n')
     f.write('%s' % -par.tstar)
@@ -170,7 +177,7 @@ def prepare(inputFile='model'):
         f.write('%s\n' % par.xi[i])              # X coordinates (cell walls)
     for i in range(par.ny+1):
         f.write('%s\n' % par.yi[i])              # Y coordinates (cell walls)
-    for i in range(par.nz+1): 
+    for i in range(par.nz+1):
         f.write('%s\n' % par.zi[i])              # Z coordinates (cell walls)
     f.close()
 
@@ -191,7 +198,7 @@ def prepare(inputFile='model'):
     f.write('======================================================================\n')
     f.write('1               Way in which this dust species is read\n')
     f.write('0               0=Thermal grain\n')
-    f.write('silicate        Extension of name of dustkappa_***.inp file\n')
+    f.write('silbeta         Extension of name of dustkappa_***.inp file\n')
     f.write('----------------------------------------------------------------------\n')
     f.close()
 
@@ -203,15 +210,3 @@ def prepare(inputFile='model'):
 
 def runModel(arg='mctherm'):
     os.system('radmc3d '+arg)
-
-
-
-
-
-
-
-
-
-
-
-
