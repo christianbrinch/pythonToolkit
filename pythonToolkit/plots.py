@@ -12,7 +12,6 @@ try:
     import matplotlib.pyplot as plt
     import matplotlib.ticker as ticker
     import matplotlib.colors as colors
-    from matplotlib.tri import Triangulation, TriAnalyzer, UniformTriRefiner
 except:
     print 'Error: plots requires matplotlib'
 
@@ -22,12 +21,20 @@ except:
     print 'Error: plots requires numpy'
 
 
-def createFigure(xaxis,yaxis,xc,yc,header,title):
+def createFigure(title='', logaxis=False):
     plt.clf()
     fig = plt.figure(1,figsize=(8, 8), dpi=600)
     ax=fig.add_subplot(111, aspect='equal')
-    if(title):
-        ax.set_title(header['OBJECT'])
+    ax.set_title(title)
+
+    if(logaxis):
+        ax.set_xscale("log", nonposx='clip')
+        ax.set_yscale("log", nonposx='clip')
+
+    return ax, fig
+
+def createSkyPlot(xaxis,yaxis,xc,yc,header,title,colors='plt.cm.copper'):
+    ax, fig = createFigure(title)
     ax.set_xlim(np.max( xaxis[xc] ),np.min( xaxis[xc] ))
     ax.set_ylim(np.min( yaxis[yc] ),np.max( yaxis[yc] ))
 
@@ -54,6 +61,7 @@ def createFigure(xaxis,yaxis,xc,yc,header,title):
 
     return ax,cmap,fig
 
+
 def beam(ax, corx, cory, posx,posy,beamsize_x,beamsize_y,angle,black):
     from matplotlib.patches import Ellipse
     from matplotlib.collections import PatchCollection
@@ -69,39 +77,3 @@ def beam(ax, corx, cory, posx,posy,beamsize_x,beamsize_y,angle,black):
     ax.plot([corx,corx-100.],[cory,cory],color=col)
     ax.plot([corx,corx],[cory,cory-100.],color=col)
     return ax
-
-
-
-
-def contour(data, x, y, label=None, log=False):
-
-    tri=Triangulation(x,y)
-
-    plt.close('all')
-    plt.figure()
-    ax=plt.subplot(111)
-    ax.minorticks_on()
-    if(log):
-        ax.set_xscale("log",nonposx='clip')
-        ax.set_yscale("log",nonposy='clip')
-
-    ax.set_xlim([min(x.min(),y.min()),max(x.max(),y.max())])
-    ax.set_ylim([min(x.min(),y.min()),max(x.max(),y.max())])
-    plt.xlabel('r [AU]')
-    plt.ylabel('z [AU]')
-
-    nmax=data.max()
-    nmin=data.min()
-    levels=np.logspace(np.log10(nmin),np.log10(nmax),num=12)
-
-    plt.tricontourf(tri, data, levels, norm=colors.LogNorm(vmin=nmin, vmax=nmax))
-    cbar=plt.colorbar(format='%.2e')
-    cbar.set_label(label)
-
-    CS=plt.tricontour(tri, data, levels, colors='black', linewidths=1.5)
-    plt.clabel(CS, fontsize=8, inline=1)
-    cbar.add_lines(CS)
-
-    plt.triplot(tri, color='black', alpha=0.2)
-
-    plt.show(block=False)

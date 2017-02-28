@@ -6,6 +6,7 @@ This module deals with radmc3d models
 """
 
 from pythonToolkit import standards
+from pythonToolkit import plots
 from pythonToolkit.constants import *
 import sys
 import os
@@ -104,13 +105,10 @@ class readModel():
                 r[k] = self.x[k % self.nx]
                 t[k] = self.y[k / self.nx]
 
-            #self.x   = r * np.sin(t)
-            #self.y   = r * np.cos(t)
 
 
-        self.T = np.reshape(self.T['1'], (300,300), order='C')
-        #self.T   = self.T[0:len(self.x)]['1']
-        #self.rho = self.rho[0:len(self.x)]['1']
+        self.T = np.reshape(self.T['1'], (self.nx,self.ny), order='C')
+        self.rho = np.reshape(self.rho['1'], (self.nx,self.ny), order='C')
 
 
 
@@ -126,6 +124,43 @@ class readModel():
             nom = simps( self.dust[1][:]**(-1) * f, cc/(1e-4*self.dust[0][:]))
             denom = simps( f, cc/(1e-4*self.dust[0][:]))
             self.kappa[i] = (nom / denom)**(-1.)
+
+
+    def plot(self, prop='density'):
+        r,t = np.meshgrid(self.x/AU, np.pi/2.-self.y)
+        ax, fig = plots.createFigure('Radmc3d %s model' % prop, logaxis=True)
+        ax.set_xlim(np.min(r*np.cos(t)), np.max(r*np.cos(t)))
+        ax.set_ylim(np.min(r*np.sin(t)), np.max(r*np.sin(t)))
+        ax.set_xlabel('r (AU)')
+        ax.set_ylabel('z (AU)')
+        if(prop == 'density'):
+            cax = ax.contourf(r*np.cos(t),r*np.sin(t), np.log10(1e-24 +
+                              self.rho/(2.37*1.67e-24)*100),
+                              levels=np.linspace(1.2,13,100),
+                              cmap=plt.cm.spectral)
+            cbar = fig.colorbar(cax)
+        elif(prop == 'temperature'):
+            cax = ax.contourf(r*np.cos(t),r*np.sin(t), np.log10(self.T),
+                              levels=np.linspace(0.8,2.8,100),
+                              cmap=plt.cm.spectral)
+            cbar = fig.colorbar(cax)
+            import scipy.ndimage
+            T = scipy.ndimage.gaussian_filter(self.T, sigma=3.0, order=0)
+            x = scipy.ndimage.zoom(r*np.cos(t), 1)
+            y = scipy.ndimage.zoom(r*np.sin(t), 1)
+            cax = ax.contour(x,y, T ,
+                levels=[10,20,40,100,300], linewidths=3, colors='black')
+            ax.clabel(cax, inline=1, fontsize=10)
+        elif(prop == 'grid'):
+            for r0 in self.x/AU:
+                ax.plot(r0*np.cos(np.pi/2.-self.y), r0*np.sin(np.pi/2.-self.y), 'k-')
+            for t0 in np.pi/2.-self.y:
+                ax.plot(self.x/AU*np.cos(t0), self.x/AU*np.sin(t0), 'k-')
+        else:
+            print "Unknown property"
+
+
+
 
 
 
@@ -204,9 +239,10 @@ def prepare(inputFile='model'):
 
     f = open('radmc3d.inp', 'w')
     f.write('nphot = %s\n' % par.nphot)
-    f.write('scattering_mode_max = 0')
+    f.write('scattering_mode_max = 0\n')
+    f.write('istar_sphere = 1\n')
     f.close()
 
 
 def runModel(arg='mctherm'):
-    os.system('radmc3d '+arg)
+    os.system('radmc3d.x '+arg)
