@@ -7,6 +7,7 @@
 """
 
 from pythonToolkit import standards
+from pythonToolkit.constants import *
 
 try:
     import matplotlib.pyplot as plt
@@ -21,10 +22,10 @@ except:
     print 'Error: plots requires numpy'
 
 
-def createFigure(title='', logaxis=False):
+def createFigure(title='', logaxis=False, aspect='equal'):
     plt.clf()
     fig = plt.figure(1,figsize=(8, 8), dpi=600)
-    ax=fig.add_subplot(111, aspect='equal')
+    ax=fig.add_subplot(111, aspect=aspect)
     ax.set_title(title)
 
     if(logaxis):
@@ -33,8 +34,44 @@ def createFigure(title='', logaxis=False):
 
     return ax, fig
 
+def createSpectrumPlot(vaxis, vc, header, title, unit):
+    ax, fig = createFigure(title, logaxis=False, aspect='auto')
+    ax.set_xlim(np.min( vaxis[vc] ),np.max( vaxis[vc] ))
+    ax.set_xlabel('Velocity (kms$^{-1}$)')
+    ax.set_ylabel('Intensity ('+unit+')')
+    ax.minorticks_on()
+
+    plt.tick_params(axis='both', which='both', width=0.4)
+    plt.subplots_adjust(bottom=0.15,left=0.15)
+
+    return ax,fig
+
+def createModelPlot(bounds, title, colors='plt.cm.copper'):
+    ax, fig = createFigure(title, logaxis=False, aspect='equal')
+    ax.set_xlim(bounds[0]/AU,bounds[1])
+    ax.set_ylim(bounds[2]/AU,bounds[1])
+    ax.set_xlabel('Radius (AU)')
+    ax.set_ylabel('Height (AU)')
+    ax.minorticks_on()
+
+    plt.tick_params(axis='both', which='both', width=0.4)
+    plt.subplots_adjust(bottom=0.15,left=0.15)
+    cmap = colors
+
+    return ax, cmap,fig
+
+
 def createSkyPlot(xaxis,yaxis,xc,yc,header,title,colors='plt.cm.copper'):
-    ax, fig = createFigure(title)
+    ax, fig = createFigure(title, logaxis=False, aspect='equal')
+    setAxis(ax, xaxis, yaxis, xc, yc, header)
+    ax.minorticks_on()
+    plt.tick_params(axis='both', which='both', width=0.4)
+    plt.subplots_adjust(bottom=0.15,left=0.15)
+    cmap = colors
+
+    return ax,cmap,fig
+
+def setAxis(ax, xaxis, yaxis, xc, yc, header):
     ax.set_xlim(np.max( xaxis[xc] ),np.min( xaxis[xc] ))
     ax.set_ylim(np.min( yaxis[yc] ),np.max( yaxis[yc] ))
 
@@ -53,13 +90,9 @@ def createSkyPlot(xaxis,yaxis,xc,yc,header,title,colors='plt.cm.copper'):
         ax.set_xlabel('Right Ascension (sec) %dh %dm' % (hours, minutes ))
         ax.set_ylabel('Declination (arcsec) %d$^\circ$ %d\' ' % (degrees, arcmin))
 
-    ax.minorticks_on()
-    plt.tick_params(axis='both', which='both', width=0.4)
-    plt.subplots_adjust(bottom=0.15,left=0.15)
-    cmap = plt.cm.copper
-    cmap.set_bad('white',1.)
 
-    return ax,cmap,fig
+
+
 
 
 def beam(ax, corx, cory, posx,posy,beamsize_x,beamsize_y,angle,black):

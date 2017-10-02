@@ -37,32 +37,49 @@ except:
 
 
 
-class read():
-    def __init__(self,fileName, coordSys='rel'):
-        try:
-            hdulist = fits.open(fileName)
-        except:
-            sys.exit("Error: FITS file not found")
+class image():
+    def __init__(self,fileName=None, header=None, image=None):
+        if fileName is not None:
+            try:
+                hdulist = fits.open(fileName)
+            except:
+                sys.exit("Error: FITS file not found")
 
-        self.fileName = fileName
-        self.header = hdulist[0].header
-        self.image = hdulist[0].data
-        hdulist.close()
+            self.fileName = fileName
+            self.header = hdulist[0].header
+            self.image = hdulist[0].data
+            hdulist.close()
 
-        # Collapse cube to three dimensions
-        if (np.ndim(self.image) == 4):
-            self.image=self.image.sum(axis=0)
+            # Collapse cube to three dimensions
+            if (np.ndim(self.image) == 4):
+                self.image=self.image.sum(axis=0)
 
+        else:
+            self.header = header
+            self.image = image
+
+        self.ax = None
+        self.setAxis()
+
+
+
+
+
+
+
+
+
+    def setAxis(self, coordSys='relative'):
         # Define xaxis, yaxis, and velocity axis
         # In case of continuum images, collapse frequency axis
         cellsize = self.header['CDELT2'] * pi/180. * 1./constants.arcsecond
-        if(coordSys == 'rel'):
+        if(coordSys == 'relative'):
           self.xunit = 'arcsec'
           self.xaxis = -(np.arange(self.header['NAXIS1'])
                          -self.header['CRPIX1']) * cellsize
           self.yaxis =  (np.arange(self.header['NAXIS2'])
                          -self.header['CRPIX2']) * cellsize
-        elif(coordSys == 'abs'):
+        elif(coordSys == 'absolute'):
             self.xunit = 'seconds'
             w = wcs.WCS(self.header)
             self.xaxis,self.yaxis,dummy,dummy = w.all_pix2world(
@@ -90,6 +107,15 @@ class read():
             if (np.ndim(self.image) == 3):
                 self.image = self.image.sum(axis=0)
 
+        #if self.ax is not None:
+        #    plots.setAxis(self.ax, self.xaxis, self.yaxis, self.xc, self.yc, self.header)
+
+        #    self.ax.set_xlim(np.max( self.xaxis ),np.min( self.xaxis ))
+        #    self.ax.set_ylim(np.min( self.yaxis ),np.max( self.yaxis ))
+
+
+
+
     def printHeader(self):
         for i in self.header:
             if i != 'HISTORY':
@@ -100,6 +126,8 @@ class read():
                 ('Beam' in x or 'restoration' in x ) and 'arcsec' in x]
         except:
             print "Header has no beam information in HISTORY"
+
+
 
     def getRMS(self):
         if([x for x in self.header if 'RMS' in x]):
@@ -116,6 +144,25 @@ class read():
         print "RMS: ",rms
         return rms
 
+
+
+    def continuumSubtract(self):
+        if not self.vaxis.any():
+            sys.exit(self.fileName + " is not a line image")
+
+        xc,yc,vc = self._getIndices(self, 1e30, 1e30, 1e30)
+
+        tmpimage = np.zeros((len(vc),len(yc), len(vc)))
+        for i in range(len(xc)):
+            for j in range(len(yc)):
+                tmp = self.image[0,j,i]
+                for k in range(len(vc)):
+                    tmpimage[k,j,i] = self.image[k,j,i]-tmp
+
+        return image(None, self.header, tmpimage)
+
+
+
     def _getIndices(self,d,dx,dy,dv=0):
         yc = np.where((self.yaxis > self.yaxis[self.header['NAXIS2']/2]-dy/2.) &
                       (self.yaxis < self.yaxis[self.header['NAXIS2']/2]+dy/2.))
@@ -125,7 +172,8 @@ class read():
             vc = np.where((self.vaxis > -dv) & (self.vaxis < dv))
         else:
             vc = 0
-        return xc,yc,vc
+        return xc[0],yc[0],vc[0]
+
 
     def _plotBeam(self,d,ax,xc,yc,black):
         if ('HISTORY' in self.header) and (not 'BMAJ' in self.header):
@@ -161,6 +209,12 @@ class read():
                 bmin=bmin*3600.
 
             plots.beam(ax, xcor, ycor, xcen, ycen, bmaj, bmin, angle, black)
+
+
+
+
+
+
 
 
 
@@ -284,21 +338,21 @@ class read():
         if(rms<0):
             rms = self.getRMS()
 
-        self.vaxis = self.vaxis-sysvel
+        vaxis = self.vaxis-sysvel
         xc,yc,vc = self._getIndices(self, dx, dy, dv)
 
         ax,cmap,fig = plots.createSkyPlot(self.xaxis, self.yaxis, xc, yc,
                                          self.header, title)
 
-        moment0 = (self.image[vc[0]]*(np.abs(self.vaxis[1]
-                                             -self.vaxis[0]))).sum(axis=0)
+        moment0 = (self.image[vc]*(np.abs(vaxis[1]
+                                             -vaxis[0]))).sum(axis=0)
         moment1 = np.zeros((self.header['NAXIS2'], self.header['NAXIS1']),
                            float)
         for j in range(self.header['NAXIS1']):
             for i in range(self.header['NAXIS2']):
                 if (moment0[i,j] > 3*rms):
-                    moment1[i,j] = (self.image[vc[0],i,j]*
-                                    self.vaxis[vc[0]]).sum()/moment0[i,j]
+                    moment1[i,j] = (self.image[vc,i,j]*
+                                    vaxis[vc]).sum()/moment0[i,j]
                 else:
                     moment1[i,j] = np.nan
 
@@ -336,53 +390,49 @@ class read():
         ax.contour(self.xaxis, self.yaxis, moment0, colors='black',
                    levels=np.arange(25)*2*rms+3*rms)
 
-
-        return ax
-
+        self.ax = ax
 
 
 
 
-
-
-    def veloContour(self, dx=1e30, dv=1e30, sysvel=0, nobeam=False, rms=-1,
-                    overplot=False):
+    def spectrum(self, dp=1, center=[0,0], dv=1e30, sysvel=0, overplot=False,
+               title=True):
 
         if not self.vaxis.any():
             sys.exit(self.fileName + " is not a line image")
 
-        if(rms<0):
-            rms = self.getRMS()
+        if dp==0:
+            dp=1
 
-        self.vaxis = self.vaxis-sysvel
-        xc,yc,vc = self._getIndices(self, dx, dv)
+        vaxis = self.vaxis-sysvel
+        xc,yc,vc = self._getIndices(self, 1e30, 1e130, dv)
 
-        i = np.where( elf.vaxis<sysvel)
-        moment = (self.image[i[0]]).sum(axis=0)
+        tmpspectrum = np.zeros(len(vc))
+        rms = self.getRMS()
+        count = 0
+        for i in range(dp):
+            for j in range(dp):
+                flag = 0
+                for k in range(len(vc)):
+                    if self.image[k,center[1]-dp/2.+j,center[0]-dp/2.+i] > 6*rms:
+                        flag = 1
 
-        rms = 0.2
-        ax.contour(self.xaxis, self.yaxis, moment, colors='blue', alpha=0.8,
-                   levels=np.arange(25)*2*rms+3*rms, linewidths=3)
+                if flag == 1:
+                    count += 1
+                    for k in range(len(vc)):
+                        tmpspectrum[k] += self.image[k,center[1]-dp/2.+j,center[0]-dp/2.+i]
 
-        # make custom colormap
-        cdict = {'red': ((0.0, 0.0, 0.0),
-                         (1.0, 1.0, 1.0)),
-                'green':((0.0, 0.0, 0.0),
-                         (1.0, 0.5, 0.5)),
-                'blue': ((0.0, 0.0, 0.0),
-                         (1.0, 0.3, 0.3))
-                }
-        myBu = cols.LinearSegmentedColormap('myBu', cdict, 256)
+        if count == 0:
+            print "No spectra found."
+            spectrum = self.image[:,center[1],center[0]]
 
-        # add ramp alpha channel
-        myBuT = cols.LinearSegmentedColormap('myBuT', cdict, 256)
-        myBuT._init()
-        alphas = np.linspace(0, 1, 256+3)
-        myBuT._lut[:,-1] = alphas
+        else:
+            print count, " spectra found."
+            spectrum = [k/float(count) for k in tmpspectrum]
 
-        i = np.where(self.vaxis>sysvel)
-        moment = (self.image[i[0]]).sum(axis=0)
+        if self.ax is None or overplot is not True:
+            self.ax,fig = plots.createSpectrumPlot(vaxis, vc, self.header, title,
+                                            self.header['BUNIT'])
 
-        rms = 0.5
-        ax.contour(self.xaxis, self.yaxis, moment, colors='red', alpha=0.8,
-                   levels=np.arange(25)*2*rms+3*rms, linewidths=3)
+        self.ax.step(vaxis[vc],spectrum, where='mid')
+        self.ax.plot([np.min(vaxis[vc]), np.max(vaxis[vc])], [0,0], '--', color='black')

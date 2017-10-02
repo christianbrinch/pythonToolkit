@@ -7,6 +7,7 @@
 """
 
 AU  = 1.49598e13     # Astronomical Unit       [cm]
+AUm = 1.49598e11     # Astronomical Unit       [m]
 pc  = 3.08572e18     # Parsec                  [cm]
 MS  = 1.98892e33     # Solar mass              [g]
 TS  = 5.78e3         # Solar temperature       [K]
