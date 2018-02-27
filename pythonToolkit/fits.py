@@ -8,6 +8,7 @@ This module contains classes and methods to read and plot FITS files
 
 from pythonToolkit import standards
 from pythonToolkit import plots
+from pythonToolkit import analysis
 import sys
 try:
     from astropy.io import fits
@@ -38,7 +39,8 @@ except:
 
 
 class image():
-    def __init__(self,fileName=None, header=None, image=None):
+    def __init__(self,fileName=None, header=None, axes=None, image=None,
+                 coordSys='relative'):
         if fileName is not None:
             try:
                 hdulist = fits.open(fileName)
@@ -58,8 +60,8 @@ class image():
             self.header = header
             self.image = image
 
-        self.ax = None
-        self.setAxis()
+        self.ax = axes
+        self._setAxis(coordSys)
 
 
 
@@ -69,7 +71,7 @@ class image():
 
 
 
-    def setAxis(self, coordSys='relative'):
+    def _setAxis(self, coordSys):
         # Define xaxis, yaxis, and velocity axis
         # In case of continuum images, collapse frequency axis
         cellsize = self.header['CDELT2'] * pi/180. * 1./constants.arcsecond
@@ -102,16 +104,8 @@ class image():
                 self.vaxis = -self.vaxis - cc*(self.header['CRVAL3']-
                               self.header['RESTFRQ'])/(self.header['RESTFRQ']*
                               1000.)
-        else:
-            self.vaxis = np.array([])
-            if (np.ndim(self.image) == 3):
-                self.image = self.image.sum(axis=0)
-
-        #if self.ax is not None:
-        #    plots.setAxis(self.ax, self.xaxis, self.yaxis, self.xc, self.yc, self.header)
-
-        #    self.ax.set_xlim(np.max( self.xaxis ),np.min( self.xaxis ))
-        #    self.ax.set_ylim(np.min( self.yaxis ),np.max( self.yaxis ))
+            if(int(self.vaxis[0])==0):
+                self.vaxis-=self.vaxis[-1]/2.
 
 
 
@@ -133,15 +127,17 @@ class image():
         if([x for x in self.header if 'RMS' in x]):
             print "Taking RMS from FITS header"
             rms = self.header['RMS']
+            print "RMS: ",rms
         elif([x for x in self.header if 'TELESCOP' in x or 'OBSERVER' in x]):
             print "This seems to be data. Calculating RMS..."
             rms = np.std(self.image[0:self.header['NAXIS2']/4,
                                     0:self.header['NAXIS1']/4])
+            print "RMS: ",rms
         else:
             print "This seems to be a model. Contours are 10% of peak value."
             rms = self.image.max()/10.
+            print "First contour at: ",rms
 
-        print "RMS: ",rms
         return rms
 
 
@@ -152,54 +148,54 @@ class image():
 
         xc,yc,vc = self._getIndices(self, 1e30, 1e30, 1e30)
 
-        tmpimage = np.zeros((len(vc),len(yc), len(vc)))
-        for i in range(len(xc)):
-            for j in range(len(yc)):
-                tmp = self.image[0,j,i]
-                for k in range(len(vc)):
-                    tmpimage[k,j,i] = self.image[k,j,i]-tmp
+        tmpimage = np.zeros((len(vc),len(yc), len(xc)))
+        for i in range(len(vc)):
+            tmpimage[i,:,:]=self.image[i,:,:]-self.image[-1,:,:]
 
-        return image(None, self.header, tmpimage)
+        return image(None, self.header, self.ax, tmpimage)
 
 
 
-    def _getIndices(self,d,dx,dy,dv=0):
-        yc = np.where((self.yaxis > self.yaxis[self.header['NAXIS2']/2]-dy/2.) &
-                      (self.yaxis < self.yaxis[self.header['NAXIS2']/2]+dy/2.))
-        xc = np.where((self.xaxis > self.xaxis[self.header['NAXIS1']/2]-dx/2.) &
-                      (self.xaxis < self.xaxis[self.header['NAXIS1']/2]+dx/2.))
-        if(self.vaxis.any()):
-            vc = np.where((self.vaxis > -dv) & (self.vaxis < dv))
+    def _getIndices(self,d,dx,dy,dv=0,sysvel=0, offset=[0,0] ):
+        yc = np.where((self.yaxis > self.yaxis[self.header['NAXIS2']/2]-dy/2.+offset[1]) &
+                      (self.yaxis < self.yaxis[self.header['NAXIS2']/2]+dy/2.+offset[1]))
+        xc = np.where((self.xaxis > self.xaxis[self.header['NAXIS1']/2]-dx/2.+offset[0]) &
+                      (self.xaxis < self.xaxis[self.header['NAXIS1']/2]+dx/2.+offset[0]))
+        if(dv>0):
+            vc = np.where((self.vaxis-sysvel > -dv) & (self.vaxis-sysvel < dv))
+            return xc[0],yc[0],vc[0]
         else:
-            vc = 0
-        return xc[0],yc[0],vc[0]
+            return xc[0],yc[0],0
 
 
-    def _plotBeam(self,d,ax,xc,yc,black):
+    def _getBeam(self,d,ax,xc,yc,black,silent=False):
         if ('HISTORY' in self.header) and (not 'BMAJ' in self.header):
             key=[x for x in self.header['HISTORY'] if
                  'Beam' in x and 'arcsec' in x]
             if key:
                 beaminfo = key[0].split()
                 offset = float(beaminfo[3])/2. + float(beaminfo[3])/4.
-                plots.beam(ax, np.min(self.xaxis[xc])+offset,
-                           np.min(self.yaxis[yc])+offset, float(beaminfo[3]),
-                           float(beaminfo[5]), float(beaminfo[9]))
+                #plots.beam(ax, np.min(self.xaxis[xc])+offset,
+                #           np.min(self.yaxis[yc])+offset, float(beaminfo[3]),
+                #           float(beaminfo[5]), float(beaminfo[9]))
+                return ax, np.min(self.xaxis[xc])+offset, np.min(self.yaxis[yc])+offset, float(beaminfo[3]),float(beaminfo[5]), float(beaminfo[9])
             else:
                 key=[x for x in self.header['HISTORY'] if
                      'restoration' in x and 'arcsec' in x]
                 if key:
                     beaminfo = key[0].split()
                     offset = float(beaminfo[2])/2. + float(beaminfo[4])/4.
-                    plots.beam(ax, np.min(self.xaxis[xc])+offset,
-                               np.min(self.yaxis[yc])+offset,
-                               float(beaminfo[2]), float(beaminfo[4]),
-                               float(beaminfo[8]))
+                    #plots.beam(ax, np.min(self.xaxis[xc])+offset,
+                    #           np.min(self.yaxis[yc])+offset,
+                    #           float(beaminfo[2]), float(beaminfo[4]),
+                    #           float(beaminfo[8]))
+                    return ax, np.min(self.xaxis[xc])+offset,np.min(self.yaxis[yc])+offset,float(beaminfo[2]), float(beaminfo[4]),float(beaminfo[8])
         elif ('BMAJ' in self.header) and ('BMIN' in self.header):
             bmaj = float(self.header['BMAJ'])
             bmin = float(self.header['BMIN'])
             angle = float(self.header['BPA'])
-            print "Beam size: ", bmaj*3600.,"x", bmin*3600., " Angle: ", angle+90
+            if not silent:
+                print "Beam size: ", bmaj*3600.,"x", bmin*3600., " Angle: ", angle+90
             dx = (np.max(self.xaxis[xc])-np.min(self.xaxis[xc]))/10.
             dy = (np.max(self.yaxis[yc])-np.min(self.yaxis[yc]))/10.
             xcor,ycor = np.min(self.xaxis[xc]) + dx, np.min(self.yaxis[yc]) + dy
@@ -208,18 +204,16 @@ class image():
                 bmaj=bmaj*3600.
                 bmin=bmin*3600.
 
-            plots.beam(ax, xcor, ycor, xcen, ycen, bmaj, bmin, angle, black)
+            return ax, xcor, ycor, xcen, ycen, bmaj, bmin, angle, black
+        else:
+            print "cannot find any beam info"
 
 
 
+    def _initPlot(self,dx,dy,dv,sysvel,rms,overplot,offset):
 
-
-
-
-
-
-    def continuum(self, dx=1e30, dy=-1, noBeam=False, rms=-1, immax=-1,
-                  solid=True, title='', wedge=True, lightBackground=True):
+        if dx <= 0.:
+            sys.exit("Delta_x cannot be zero or less")
 
         if(dy == -1):
             dy = dx
@@ -228,44 +222,84 @@ class image():
             dy = dy/3600.
             dx = dx/3600.
 
-        #if(self.vaxis.any()):
-        #    sys.exit(self.fileName + " is not a continuum image")
-
         if(rms<0):
             rms = self.getRMS()
 
-        xc,yc,vc = self._getIndices(self,dx,dy)
-
-        ax,cmap,fig = plots.createSkyPlot(self.xaxis, self.yaxis, xc, yc,
-                                         self.header, title)
-
-        if(immax == -1):
-            immax = np.nanmax(self.image)
-
-        cx = cubehelix.cmap(start=0, rot=-0.5, reverse=lightBackground)
-        if(solid):
-            im=ax.imshow(self.image, cmap=cx, alpha=1.0,
-                        interpolation='nearest', origin='lower',
-                        extent=[np.max(self.xaxis), np.min(self.xaxis),
-                        np.min(self.yaxis), np.max(self.yaxis)],
-                        vmin=np.nanmin(3*rms), vmax=immax, aspect='auto')
-            if(wedge):
-                cbar = plt.colorbar(im)
-                cbar.set_label('Intensity ('+self.header['BUNIT']+')')
+        if(overplot is True):
+            alpha=0.4
         else:
-            im=ax.imshow(self.image, cmap=cx, alpha=0.0,
-                         interpolation='nearest', origin='lower',
-                         extent=[np.max(self.xaxis), np.min(self.xaxis),
-                         np.min(self.yaxis), np.max(self.yaxis)],
-                         vmin=np.nanmin(3*rms), vmax=immax, aspect='auto')
-            im=ax.contour(self.xaxis, self.yaxis, self.image, colors='black',
-                          aspect='auto', interpolation='nearest',
-                          linewidths=1.5, levels=np.arange(150)*3*rms+3*rms)
+            alpha=1.
+
+        xc,yc,vc = self._getIndices(self, dx, dy, dv, sysvel, offset)
+
+        return dy,rms,xc,yc,vc,alpha
+
+
+
+
+
+
+
+
+
+    def continuum(self, dx=1e30, dy=-1, offset=[0,0], rms=-1, immax=None,
+                  noBeam=False, wedge=True, solid=True, title='',
+                  lightBackground=True, overplot=False):
+        ''' Plots a map of the continuum emission
+
+            Keyword arguments:
+            dx -- delta x in arcseconds (default is entire x axis)
+            dy -- delta y in arcseconds (default is same as dx)
+            offset -- center offset of the map in arcseconds (default is [0,0])
+
+            rms -- noise level (default is getRMS())
+            immax -- Saturation level (default is image maximum)
+
+            noBeam -- if true, do not plot beam (default is false)
+            wedge -- if true, plot color bar (default is true)
+            solid -- if true, plot filled contours (default is true)
+            title -- title string for the plot (default is none)
+            lightBackground -- if false, invert colors (default is true)
+
+            overplot -- do not erase previous plot (default is false)
+        '''
+
+        dy, rms, xc, yc, vc, alpha = self._initPlot(dx, dy, 0., 0., rms,
+                                                    overplot, offset)
+
+        if overplot is not True or self.ax is None:
+            self.ax, cmap = plots.createSkyPlot(self.xaxis, self.yaxis, xc, yc,
+                                                self.header, title,
+                                                cubehelix.cmap(start = 0,
+                                                rot = -0.5,
+                                                reverse = lightBackground))
+
+        if immax is None:
+            immax = np.nanmax(self.image[0,:,:])
+
+        if not solid:
+            alpha = 0.0
+
+        im=self.ax.imshow(self.image[0,:,:], cmap=cmap, alpha=alpha,
+                          interpolation='nearest', origin='lower',
+                          extent=[np.max(self.xaxis-offset[0]),
+                                  np.min(self.xaxis-offset[0]),
+                                  np.min(self.yaxis-offset[1]),
+                                  np.max(self.yaxis-offset[1])],
+                          vmin=np.nanmin(3*rms), vmax=immax, aspect='auto')
+
+        if not solid:
+            self.ax.contour(self.xaxis, self.yaxis, self.image[0,:,:],
+                            colors='black', aspect='auto',
+                            interpolation='nearest', lw=1.5,
+                            levels=np.arange(150)*3*rms+3*rms)
+
+        if solid and wedge and overplot is not True:
+            cbar = plt.colorbar(im)
+            cbar.set_label('Intensity ('+self.header['BUNIT']+')')
 
         if(not noBeam):
-            self._plotBeam(self, ax, xc, yc, lightBackground)
-
-        return ax
+            plots.beam(*self._getBeam(self, self.ax, xc, yc, lightBackground))
 
 
 
@@ -315,124 +349,222 @@ class image():
             cbar.set_label('Polarization degree')
 
         if(not noBeam):
-            self._plotBeam(self, ax, xc, yc, lightBackground)
-
-        return ax
+            plots.beam(*self._getBeam(self, self.ax, xc, yc, lightBackground))
 
 
 
 
+    def moment(self, mom=0, dx=1e30, dy=-1, dv=1e30, offset=[0,0], sysvel=0,
+               rms=-1, immax=-1, nobeam=False, wedge=True, solid=True,
+               title='', overplot=False ):
+        ''' Plots a moment map of the line emission
 
+            Keyword arguments:
+            mom -- the moment to be displayed (default is 0th moment)
 
+            dx -- delta x in arcseconds (default is entire x axis)
+            dy -- delta y in arcseconds (default is same as dx)
+            dv -- delta v in km/s (default is entire v axis)
+            offset -- center offset of the map in arcseconds (default is [0,0])
+            sysvel -- velocity offset in km/s (default is 0)
 
+            rms -- noise level (default is getRMS())
+            immax -- Saturation level (default is image maximum)
 
-    def moment(self, dx=1e30, dy=-1, dv=1e30, sysvel=0, nobeam=False, mom=0,
-               rms=-1, overplot=False, title=True):
+            noBeam -- if true, do not plot beam (default is false)
+            wedge -- if true, plot color bar (default is true)
+            solid -- if true, plot filled contours (default is true)
+            title -- title string for the plot (default is none)
+
+            overplot -- do not erase previous plot (default is false)
+        '''
 
         if not self.vaxis.any():
             sys.exit(self.fileName + " is not a line image")
 
-        if(dy == -1):
-            dy = dx
+        dy, rms, xc, yc, vc, alpha = self._initPlot(dx, dy, dv, sysvel, rms,
+                                                    overplot, offset)
 
-        if(rms<0):
-            rms = self.getRMS()
+        if overplot is not True or self.ax is None:
+            self.ax, cmap = plots.createSkyPlot(self.xaxis, self.yaxis, xc, yc,
+                                                self.header, title, plt.cm.bwr)
 
-        vaxis = self.vaxis-sysvel
-        xc,yc,vc = self._getIndices(self, dx, dy, dv)
+        cmap.set_bad('green',0.03)
 
-        ax,cmap,fig = plots.createSkyPlot(self.xaxis, self.yaxis, xc, yc,
-                                         self.header, title)
+        moment0 = (self.image[vc]*(np.abs(self.vaxis[1] -
+                   self.vaxis[0]))).sum(axis=0)
 
-        moment0 = (self.image[vc]*(np.abs(vaxis[1]
-                                             -vaxis[0]))).sum(axis=0)
-        moment1 = np.zeros((self.header['NAXIS2'], self.header['NAXIS1']),
-                           float)
-        for j in range(self.header['NAXIS1']):
-            for i in range(self.header['NAXIS2']):
-                if (moment0[i,j] > 3*rms):
-                    moment1[i,j] = (self.image[vc,i,j]*
-                                    vaxis[vc]).sum()/moment0[i,j]
-                else:
-                    moment1[i,j] = np.nan
+        if mom == 1:
+            moment1 = np.zeros((self.header['NAXIS2'],self.header['NAXIS1']),
+                      float)
+            for j in range(self.header['NAXIS1']):
+                for i in range(self.header['NAXIS2']):
+                    if moment0[i,j] > 3*rms:
+                        moment1[i,j] = (self.image[vc,i,j]*(self.vaxis[vc] -
+                                        sysvel)).sum()/moment0[i,j]
+                    else:
+                        moment1[i,j] = np.nan
 
-        if(mom == 1):
-          moment = moment1
+            moment = moment1
         else:
-          moment = moment0
+            moment = moment0
 
-        # make custom colormap
-        cdict = {'red':  ((0.0, 0.0, 0.0),
-                          (1.0, 0.3, 0.3)),
-                 'green':((0.0, 0.0, 0.0),
-                          (1.0, 0.5, 0.5)),
-                 'blue': ((0.0, 0.0, 0.0),
-                          (1.0, 1.0, 1.0))
-                }
-        myBu = cols.LinearSegmentedColormap('myBu', cdict, 256)
+        if(immax == -1):
+            immax = np.maximum(np.nanmax(moment), abs(np.nanmin(moment)))
 
-        # add ramp alpha channel
-        myBuT = cols.LinearSegmentedColormap('myBuT', cdict, 256)
-        myBuT._init()
-        alphas = np.linspace(0, 1, 256+3)
-        myBuT._lut[:,-1] = alphas
+        if mom == 1:
+            immin = -immax
+        else:
+            immin = 0.
 
-        im = ax.imshow(moment, cmap=plt.cm.jet, alpha=1.0,
-                       interpolation='nearest', origin='lower',
-                       extent=[np.max(self.xaxis), np.min(self.xaxis),
-                       np.min(self.yaxis), np.max(self.yaxis)],
-                       vmin=np.nanmin(moment), vmax=np.nanmax(moment),
-                       aspect='auto')
+        if solid:
+            im = self.ax.imshow(moment, cmap=cmap, alpha=alpha,
+                                interpolation='nearest', origin='lower',
+                                extent=[np.max(self.xaxis-offset[0]),
+                                        np.min(self.xaxis-offset[0]),
+                                        np.min(self.yaxis-offset[1]),
+                                        np.max(self.yaxis-offset[1])],
+                                vmin=immin, vmax=immax, aspect='auto')
 
-        plt.subplots_adjust(bottom=0.15, left=0.15)
-        cbar = plt.colorbar(im)
-        cbar.set_label('Intensity integrated velocity')
-        ax.contour(self.xaxis, self.yaxis, moment0, colors='black',
-                   levels=np.arange(25)*2*rms+3*rms)
+        self.ax.contour(self.xaxis-offset[0], self.yaxis-offset[1], moment,
+                        colors='black', levels=np.arange(500)*2*rms+3*rms)
 
-        self.ax = ax
+        if solid and wedge and overplot is not True:
+            cbar = plt.colorbar(im)
+            cbar.set_label('Intensity integrated velocity')
+
+        if(not nobeam):
+            plots.beam(*self._getBeam(self, self.ax, xc, yc, True))
 
 
+    def pv(self, dx=1e30, dy=-1, dv=1e30, offset=[0,0], sysvel=0., rms=-1,
+           immax=-1, wedge=True, solid=True, title='', overplot=False):
+        ''' Plots a PV-diagram
+
+            Keyword arguments:
+            dx -- delta x in arcseconds (default is 0)
+            dy -- delta y in arcseconds (default is same as dx)
+            dv -- delta v in km/s (default is entire v axis)
+            offset -- center offset of the map in arcseconds (default is [0,0])
+            sysvel -- velocity offset in km/s (default is 0)
+
+            rms -- noise level (default is getRMS())
+
+            wedge -- if true, plot color bar (default is true)
+            solid -- if true, plot filled contours (default is true)
+            title -- title string for the plot (default is none)
+
+            overplot -- do not erase previous plot (default is false)
+        '''
+        if not self.vaxis.any():
+            sys.exit(self.fileName + " is not a line image")
+
+        if dy == -1:
+            dy=4*abs(self.yaxis[1]-self.yaxis[0])
+
+        dy, rms, xc, yc, vc, alpha = self._initPlot(dx, dy, dv, sysvel, rms,
+                                                    overplot, offset)
+
+        if overplot is not True or self.ax is None:
+            self.ax, cmap = plots.createPvPlot(self.xaxis, self.vaxis-sysvel, xc, vc,
+                                                self.header, title,
+                                                plt.cm.viridis)
 
 
-    def spectrum(self, dp=1, center=[0,0], dv=1e30, sysvel=0, overplot=False,
-               title=True):
+        pv = []
+        pverr = []
+        for i in vc:
+            popt = analysis.twoD_gaussFit(self,self.image[i,:,:])
+
+            pv.append(popt[1])
+            pverr.append(popt[2])
+
+        image = self.image[:,yc,:].sum(axis=1)
+
+        if(immax == -1):
+            immax = np.maximum(np.nanmax(image), abs(np.nanmin(image)))
+
+        immin = 0
+
+
+        if solid:
+            im = self.ax.imshow(image, cmap=cmap, alpha=alpha,
+                                interpolation='nearest', origin='lower',
+                                extent=[np.max(self.xaxis-offset[0]),
+                                        np.min(self.xaxis-offset[0]),
+                                        np.min(self.vaxis-sysvel),
+                                        np.max(self.vaxis-sysvel)],
+                                vmin=immin, vmax=immax, aspect='auto')
+
+        self.ax.contour(self.xaxis-offset[0], self.vaxis-sysvel, image,
+                        colors='black', levels=np.arange(500)*2*rms+3*rms)
+        self.ax.plot([np.min(self.xaxis[xc]), np.max(self.xaxis[xc])], [0,0],
+                     '--', color='black')
+        self.ax.plot([0,0],[np.min(self.vaxis[vc]-sysvel),
+                     np.max(self.vaxis[vc] - sysvel)], '--', color='black')
+
+
+        if solid and wedge and overplot is not True:
+            cbar = plt.colorbar(im)
+            cbar.set_label(self.header['BUNIT'])
+
+
+
+    def spectrum(self, dx=-1, dy=-1, dv=1e30, offset=[0,0], sysvel=0., rms=-1,
+                 title='', overplot=False, fit=False):
+        ''' Plots a spectrum
+
+            Keyword arguments:
+            dx -- delta x in arcseconds (default is 0)
+            dy -- delta y in arcseconds (default is same as dx)
+            dv -- delta v in km/s (default is entire v axis)
+            offset -- center offset of the map in arcseconds (default is [0,0])
+            sysvel -- velocity offset in km/s (default is 0)
+
+            rms -- noise level (default is getRMS())
+
+            title -- title string for the plot (default is none)
+
+            overplot -- do not erase previous plot (default is false)
+
+            fit -- overplot Gaussian fit to the spectrum (default is no)
+        '''
 
         if not self.vaxis.any():
             sys.exit(self.fileName + " is not a line image")
 
-        if dp==0:
-            dp=1
+        if dx == -1:
+            dx=abs(self.xaxis[1]-self.xaxis[0])
 
-        vaxis = self.vaxis-sysvel
-        xc,yc,vc = self._getIndices(self, 1e30, 1e130, dv)
+        dy, rms, xc, yc, vc, alpha = self._initPlot(dx, dy, dv, sysvel, rms,
+                                                    overplot, offset)
 
         tmpspectrum = np.zeros(len(vc))
-        rms = self.getRMS()
         count = 0
-        for i in range(dp):
-            for j in range(dp):
-                flag = 0
-                for k in range(len(vc)):
-                    if self.image[k,center[1]-dp/2.+j,center[0]-dp/2.+i] > 6*rms:
-                        flag = 1
-
-                if flag == 1:
+        for i in xc:
+            for j in yc:
+                if (self.image[vc, j, i] > 3*rms).any():
                     count += 1
-                    for k in range(len(vc)):
-                        tmpspectrum[k] += self.image[k,center[1]-dp/2.+j,center[0]-dp/2.+i]
+                    tmpspectrum += self.image[vc, j, i]
 
         if count == 0:
-            print "No spectra found."
-            spectrum = self.image[:,center[1],center[0]]
-
+            return "No spectra found."
         else:
             print count, " spectra found."
             spectrum = [k/float(count) for k in tmpspectrum]
 
         if self.ax is None or overplot is not True:
-            self.ax,fig = plots.createSpectrumPlot(vaxis, vc, self.header, title,
-                                            self.header['BUNIT'])
+            self.ax = plots.createSpectrumPlot(self.vaxis-sysvel, vc,
+                                               self.header, title,
+                                               self.header['BUNIT'])
 
-        self.ax.step(vaxis[vc],spectrum, where='mid')
-        self.ax.plot([np.min(vaxis[vc]), np.max(vaxis[vc])], [0,0], '--', color='black')
+        self.ax.step(self.vaxis[vc]-sysvel, spectrum, where='mid')
+        self.ax.plot([np.min(self.vaxis[vc]-sysvel),
+                     np.max(self.vaxis[vc] - sysvel)], [0,0], '--',
+                     color='black')
+        if(fit):
+            popt = analysis.gaussFit(self.vaxis[vc]-sysvel, spectrum,
+                                     self.header['BUNIT'] )
+            self.ax.plot(self.vaxis[vc]-sysvel,
+                         analysis.gauss_function(self.vaxis[vc] - sysvel,
+                         *popt), color='red')

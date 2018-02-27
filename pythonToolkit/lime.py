@@ -38,9 +38,14 @@ class read():
         self.z=[np.abs(self.data[2][i])/AUm for i in range(len(self.data[0]))]
         self.triang = tri.Triangulation(self.r,self.z)
 
-    def plotDensity(self):
+    def plotDensity(self,immin=None,immax=None):
+        if(immin is None):
+            immin=min(self.data[3][:])
+        if(immax is None):
+            immax=max(self.data[3][:])
         ax,cmap,fig = plots.createModelPlot([0,np.max(self.r),0,np.max(self.z)], 'Gas number density')
-        im=plt.tricontourf(self.triang, [np.log10(self.data[3][i]/1e6) for i in range(len(self.data[0]))])
+        lev=np.linspace(np.log10(immin), np.log10(immax), 50)
+        im=plt.tricontourf(self.triang, [np.log10(self.data[3][i]/1e6) for i in range(len(self.data[0]))], levels=lev)
         cbar = plt.colorbar(im)
         cbar.set_label('cm$^{-3}$')
 
@@ -50,8 +55,14 @@ class read():
         cbar = plt.colorbar(im)
         cbar.set_label('K')
 
-    def plotAbundance(self):
-        ax,cmap,fig = plots.createModelPlot([0,np.max(self.r),0,np.max(self.z)], 'Relative CO abundance')
-        im=plt.tricontourf(self.triang, [np.log(self.data[5][i]) for i in range(len(self.data[0]))])
-        cbar = plt.colorbar(im)
-        cbar.set_label('')
+    def plotAbundance(self,immin=None,immax=None):
+        if(immin is None):
+            immin=min(self.data[5][:])
+        if(immax is None):
+            immax=max(self.data[5][:])
+        ax,cmap,fig = plots.createModelPlot([0,np.max(self.r),0,np.max(self.z)], 'Relative abundance')
+        lev=np.linspace(np.log10(immin), np.log10(immax), 50)
+        im=plt.tricontourf(self.triang, [np.log10(self.data[5][i]) for i in range(len(self.data[0]))], \
+        levels=lev, cmap=cm.inferno)
+        cbar = plt.colorbar(im,ax=ax)
+        cbar.set_label('n/n$_{H_2}$')
